@@ -68,13 +68,24 @@ enumerate_volumes() {
     # If any arguments correspond to files present on the host, bind-mount
     # the parent directory
     for ARG in "$@"; do
-        # Deal with symlinks and relative paths
-        ARG=$(readlink --canonicalize --no-newline $ARG)
-
-        DIRNAME="$(dirname "$ARG")"
-        if [ -d "$DIRNAME" ]; then
-            # FIXME: what about important directories like /, /usr...?
-            VOLUMES="$VOLUMES --volume $DIRNAME:$DIRNAME"
+        verbose_echo "     -> $ARG"
+        if [[ $ARG == -* ]]; then
+            verbose_echo "Flag detected, ignoring: $ARG"
+        else
+            # Deal with symlinks and relative paths
+            ARG=$(readlink --canonicalize --no-newline $ARG)
+            if [ -z $ARG ]; then
+                verbose_echo "not a file: $ARG"
+            else
+                DIRNAME="$(dirname "$ARG")"
+                if [ -d "$DIRNAME" ]; then
+                    # fixme: what about important directories like /, /usr...?
+                    VOLUMES="$VOLUMES --volume $DIRNAME:$DIRNAME"
+                    verbose_echo "Volume detected: $DIRNAME"
+                else
+                    verbose_echo "$DIRNAME is not a dir"
+                fi
+            fi
         fi
     done
 
@@ -87,8 +98,10 @@ enumerate_envvars() {
 
 verbose_echo() {
     if [ ! -z $CLINK_VERBOSITY ]; then
-        echo "$@"
+        fd="--stderr"
     fi
+    logger --id $fd --tag "clink" "$@"
+    #>&2 echo "$@" | logger --id --stderr --tag "[clink]"
 }
 
 print_run_cmd() {
