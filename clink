@@ -1,14 +1,9 @@
-#!/bin/bash
-# Notes: for zsh, see
-# /etc/zsh_command_not_found
-# /usr/share/command-not-found
-# /usr/bin/command-not-found
-# See also zsh theme for hg bullshit
-# For bash, see /etc/skel/.bashrc
+#!/bin/sh
 
 need_item() {
     if [ -z $1 ]; then
         echo "Not enough input"
+        exit 1
     fi
 }
 
@@ -29,6 +24,7 @@ run_cli() {
         need_item $1
         image=$1
         echo "Installing $image"
+        # FIXME
         ;;
     --get)
         shift
@@ -43,30 +39,56 @@ run_cli() {
     *)
         need_item $1
         image=$1
-        shift
-        args=$@
-        echo "Running: $image $args"
-        $image $args
+        echo "Running: $image $@"
+        run_source
+        command_not_found "$@"
     esac
 }
 
 run_source() {
-    source $SCRIPT_DIR/source_commands
+    # If we are symlink, find out our true path.
+    # (Note: we only dereference one level.)
+    if [[ -L "$SCRIPT_FILE" ]]; then
+        SCRIPT_FILE="$(readlink "$SCRIPT_FILE")"
+    fi
+
+    SCRIPT_DIR="$(dirname "$SCRIPT_FILE")"
+    source "$SCRIPT_DIR/source_commands"
 }
 
-# Get the script's real directory, whether we're being called directly or via a symlink
-if [[ "$SHELL" == "/usr/bin/zsh" ]]; then
-    if [ -L $0 ]; then
-        export SCRIPT_DIR=$(dirname $(readlink $0))
+# We need to find out:
+# - where we are installed,
+# - if we are executed or sourced.
+# Detection mechanisms will depend on the shell used.
+
+if [[ -n "${BASH_SOURCE[0]}" ]]; then
+    # This special variable is set only in bash.
+    # It is *always* the name of the file.
+    SCRIPT_FILE="${BASH_SOURCE[0]}"
+    # If we are executed, $0 is the name of the file.
+    if [[ "$SCRIPT_FILE" = "$0" ]]; then
+        SCRIPT_MODE=exec
     else
-        export SCRIPT_DIR=$(dirname $(readlink -f $0))
+        SCRIPT_MODE=source
     fi
-elif [[ "$SHELL" == "/bin/bash" ]]; then
-    export SCRIPT_DIR=$(dirname $(pwd))
 fi
 
-# See if we're being sourced or executed directly
-cd $SCRIPT_DIR
-[[ "${BASH_SOURCE[0]}" != "${0}" ]] \
-    && run_source || run_cli $@ 
-cd -
+if [[ -n "$ZSH_EVAL_CONTEXT" ]]; then
+    # This special variable is set only in zsh.
+    SCRIPT_FILE="$0"
+    # ZSH_EVAL_CONTEXT is "toplevel" when we are executed,
+    # and "toplevel:file" if we are sourced.
+    if [[ "$ZSH_EVAL_CONTEXT" = toplevel ]]; then
+        SCRIPT_MODE=exec
+    else
+        SCRIPT_MODE=source
+    fi
+fi
+
+case "$SCRIPT_MODE" in
+    source) run_source;;
+    exec) run_cli "$@";;
+    *) echo "Sorry, I could not detect which shell you are using.";;
+esac
+
+

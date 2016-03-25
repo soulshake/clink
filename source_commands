@@ -1,14 +1,8 @@
-#!/bin/bash
-# hash -d  -> delete an entry from the hash table (so path is recalculated)
-# hash -p  -> add an executable to hash table even if it's not on the path
-# unset -f -> 
-
 image_exists() {
     # See if a Docker image named $1 exists locally.
 
     # Will always return 1 if inspecting a container instead of an image
     if ! docker inspect --format '{{ .Author }}' "$1" >&/dev/null ; then
-        echo "failed at author: $1"
         return 1
     fi
 
@@ -20,11 +14,15 @@ image_exists() {
 }
 
 docker_run_image() {
-    # Run Docker image named $1.
+    # Run Docker image.
+    # Arguments: <imagename> [optional args passed at the end of docker run...]
 
-    del_stopped $image-run
+    # FIXME
+    docker rm ${1}-run
 
+    # FIXME: restore glorious comment
     DEVICES=
+    # FIXME: zsh annoyingly complains when no matches are found for those
     for DEV in /dev/kvm /dev/dri/* /dev/snd/*; do
         if [ -b "$DEV" -o -c "$DEV" ]; then
             DEVICES="$DEVICES --device $DEV:$DEV"
@@ -45,11 +43,12 @@ docker_run_image() {
     # the parent directory
     IMAGE=$1
     shift 
-    args=$@
-    for arg in args; do
-        dirname=$(readlink -f $(dirname $arg))
-        if [ -d $dirname ]; then
-            VOLUMES="$VOLUMES --volume $dirname:$dirname"
+    for ARG in "$@"; do
+        # FIXME: maybe deal with symlinks
+        DIRNAME="$(dirname "$ARG")"
+        if [ -d "$DIRNAME" ]; then
+            # FIXME: what about important directories like /, /usr...?
+            VOLUMES="$VOLUMES --volume $DIRNAME:$DIRNAME"
         fi
     done
 
@@ -62,48 +61,24 @@ docker_run_image() {
     #$DEVICES  
     #$DOCKERFILES_RUN_FLAGS \
     docker run $DASHT \
-        --name $image-run \
+        --name ${IMAGE}-run \
         -i \
-        -u $(whoami) \
-        $VOLUMES \
+        -u $(id -u) \
         -v /etc/passwd:/etc/passwd:ro \
         -v /etc/group:/etc/group:ro \
         -v /etc/localtime:/etc/localtime:ro \
+        $VOLUMES \
         -P \
         $ENTRYPOINT \
         -w $(pwd) \
-        "$image" "$@"
+        "$IMAGE" "$@"
 }
 
 which() {
     /bin/which $1 || type -a $1 || declare -f $1 || docker images $1
 }
 
-############
-### BASH ###
-############
-
-command_not_found_handle() {
-    # "command_not_found_handle" is the command-not-found hook for bash
-    image=$1
-
-    if image_exists $image; then
-        echo "Found image; running it"
-        docker_run_image "$@"
-    else
-        echo "$0: $1: command not found"
-        return
-    fi
-
-    }
-
-###########
-### ZSH ###
-###########
-
-command_not_found_handler() {
-    # "command_not_found_handler" is the command-not-found hook for zsh
-
+command_not_found() {
     if image_exists $1; then
         echo "Found image; running it"
         docker_run_image "$@"
@@ -111,6 +86,12 @@ command_not_found_handler() {
         echo "$0: $1: command not found"
         return
     fi
-
 }
 
+command_not_found_handle () {
+    command_not_found "$@"
+}
+
+command_not_found_handler() {
+    command_not_found "$@"
+}
