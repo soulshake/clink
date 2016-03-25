@@ -73,17 +73,15 @@ For more information, see:
 
 ### `which` integration
 
-When sourced, this program redefines the `which` command so that tagged images show up when a user runs `which IMAGE` on their system.
-
-Currently we don't do that, but in the meantime, there's a little wrapper:
+Obviously, Docker images don't appear in your system path:
 
     $ /bin/which ubuntu
+    < no output >
 
-    $ type -a ubuntu
+But when sourced, this program redefines (actually, wraps) the `which` command so that tagged images show up when a user runs `which IMAGE` on their system:
+
+    $ which ubuntu
     bash: type: ubuntu: not found
-
-    $ clink --which ubuntu
-
     REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
     ubuntu              14.04               1c9b046c2850        11 weeks ago        187.9 MB
     ubuntu              latest              1c9b046c2850        11 weeks ago        187.9 MB
