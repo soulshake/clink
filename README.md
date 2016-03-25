@@ -18,7 +18,9 @@ Build a docker image with the name of the command you want to run:
 
     $ docker build -t COMMAND_NAME .
 
-    $ clink --which COMMAND_NAME
+Then just run COMMAND_NAME as usual and `clink` will run a Docker container of the corresponding image.
+
+Like all sufficiently advanced technology, this is a dirty hack under no circumstances to be confused with magic.
 
 ## How it works
 
