@@ -103,4 +103,4 @@ It would be nice if image names could be autocompleted and/or found with any of 
 
 ## Acknowledgements
 
-Inspired by [jfrazelle](https://github.com/jfrazelle/dockerfiles/blob/master/bashrc).
+Inspired by [@jfrazelle / @jpetazzo bashrc](https://github.com/jfrazelle/dockerfiles/blob/master/bashrc).
