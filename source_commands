@@ -4,6 +4,8 @@
 # unset -f -> 
 
 image_exists() {
+    # See if a Docker image named $1 exists locally.
+
     # Will always return 1 if inspecting a container instead of an image
     if ! docker inspect --format '{{ .Author }}' "$1" >&/dev/null ; then
         echo "failed at author: $1"
@@ -18,7 +20,7 @@ image_exists() {
 }
 
 docker_run_image() {
-    echo "... in docker_run_image"
+    # Run Docker image named $1.
 
     del_stopped $image-run
 
@@ -73,6 +75,9 @@ docker_run_image() {
         "$image" "$@"
 }
 
+which() {
+    /bin/which $1 || type -a $1 || declare -f $1 || docker images $1
+}
 
 ############
 ### BASH ###

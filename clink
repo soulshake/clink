@@ -12,6 +12,16 @@ need_item() {
     fi
 }
 
+display_usage() {
+    echo "Usage:"
+    echo "$0 [FLAGS] IMAGE"
+    echo "Flags:"
+    echo "--install-shell-func IMAGE"
+    echo "--get IMAGE"
+    echo "Help:"
+    echo "-h, --help"
+}
+
 run_cli() {
     case "$1" in
     --install-shell-func)
@@ -20,11 +30,14 @@ run_cli() {
         image=$1
         echo "Installing $image"
         ;;
-    -h)
-        echo "Usage:"
-        echo "$0 [FLAGS] IMAGE"
-        echo "Flags:"
-        echo "--install-shell-func IMAGE"
+    --get)
+        shift
+        need_item $1
+        image=$1
+        docker pull $image
+        ;;
+    -h|--help)
+        display_usage
         exit 1
         ;;
     *)

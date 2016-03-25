@@ -1,16 +1,33 @@
 # clink: containerize all the things
 
+Warning: This is extremely beta.
+
 ## Installation
 
-    $ curl get.clink.io | sh
+    $ git clone https://github.com/soulshake/clink.git
+
+Add to your profile:
+
+    source PATH_TO_CLONED_REPO/clink
+
+Bash is supported. Zsh *might* work.
 
 ## Usage
 
-    $ clink list
+Build a docker image with the name of the command you want to run:
+
+    $ docker build -t COMMAND_NAME .
+
+    $ clink --which COMMAND_NAME
 
 ## How it works
 
 When a command name is sent to the shell, the shell looks in $PATH for matches.
+
+If an executable is found in your path, your shell will run it like it normally does.
+
+If no matching executable is found in your path, your shell will look for a function named `command_not_found_handle` (in the case of bash) or `command_not_found_handler` (in the case of zsh). By sourcing `clink` in your profile, you are defining these functions, which will take over. `clink` looks for Docker images on your system with a matching tag and attempts to run them for you.
+
 Missing commands are handled a bit differently depending on your shell.
 
 ### zsh
@@ -52,18 +69,34 @@ For more information, see:
    result in multiple identically-named entries in the environment  passed  to  the  shell's  children.   Care
    should be taken in cases where this may cause a problem.
 
+### `which` integration
+
+When sourced, this program redefines the `which` command so that tagged images show up when a user runs `which IMAGE` on their system.
+
+Currently we don't do that, but in the meantime, there's a little wrapper:
+
+    $ /bin/which ubuntu
+
+    $ type -a ubuntu
+    bash: type: ubuntu: not found
+
+    $ clink --which ubuntu
+
+    REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+    ubuntu              14.04               1c9b046c2850        11 weeks ago        187.9 MB
+    ubuntu              latest              1c9b046c2850        11 weeks ago        187.9 MB
+
+    $ ubuntu
+    Found image; running it
+    aj@27872ecd864e:~/git/clink$
+
 ## To do
 
 ### Install script
 
-Need to make the script for get.clink.io (or whatever).
+Need to make the script for get.clink.tld (or whatever).
 
 ### add to $PATH
 
-#### Integrate with `which`?
-
-After running `hash -p ~/git/clink/clink clink`, the command `clink` works, but cannot be autocompleted and is not found with any of `which`, `type -a` or `declare -f`.
-
-# user or $(whoami) ?
-
+It would be nice if image names could be autocompleted and/or found with any of `which`, `type -a` or `declare -f`, instead of redefining which.
 
