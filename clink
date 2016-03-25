@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 need_item() {
     if [ -z $1 ]; then
