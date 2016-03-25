@@ -1,8 +1,16 @@
+#!/bin/sh
+
+find_images() {
+    docker images "$1"  # This always returns 0, there must be a better way
+    #docker inspect --format='{{ .RepoTags }}' "$1"
+}
+
 image_exists() {
     # See if a Docker image named $1 exists locally.
 
     # Will always return 1 if inspecting a container instead of an image
     if ! docker inspect --format '{{ .Author }}' "$1" >&/dev/null ; then
+        echo "failed at author"
         return 1
     fi
 
@@ -13,38 +21,56 @@ image_exists() {
     return 0
 }
 
-docker_run_image() {
-    # Run Docker image.
-    # Arguments: <imagename> [optional args passed at the end of docker run...]
-
-    # FIXME
-    docker rm ${1}-run
-
-    # FIXME: restore glorious comment
-    DEVICES=
+enumerate_devices() {
+    # Add a bunch of (optional) devices
+    # (Don't add them unconditionally: if they don't exist, it
+    # would prevent the container from starting)
     # FIXME: zsh annoyingly complains when no matches are found for those
+
+    DEVICES=
     for DEV in /dev/kvm /dev/dri/* /dev/snd/*; do
         if [ -b "$DEV" -o -c "$DEV" ]; then
             DEVICES="$DEVICES --device $DEV:$DEV"
         fi
     done
+    echo "$DEVICES"
+}
 
+enumerate_volumes() {
     # And a few (optional) files
-    # (Here again, they don't always exist everywhere)
+    # (Like in enumerate_devices, they don't always exist everywhere)
+
+    RW_VOLS="
+        /tmp/.X11-unix
+        /run/user
+        `pwd`
+    "
+    RO_VOLS="
+        /etc/passwd
+        /etc/group
+        /etc/localtime
+    "
+
     VOLUMES=
-    for VOL in /tmp/.X11-unix /run/user; do
+    for VOL in $RW_VOLS ; do
         if [ -e "$VOL" ]; then
             VOLUMES="$VOLUMES --volume $VOL:$VOL"
+        fi
+    done
+
+    for VOL in $RO_VOLS ; do
+        if [ -e "$VOL" ]; then
+            VOLUMES="$VOLUMES --volume $VOL:$VOL:ro"
         fi
     done
 
     # User arguments
     # If any arguments correspond to files present on the host, bind-mount
     # the parent directory
-    IMAGE=$1
-    shift 
     for ARG in "$@"; do
-        # FIXME: maybe deal with symlinks
+        # Deal with symlinks and relative paths
+        ARG=$(readlink --canonicalize --no-newline $ARG)
+
         DIRNAME="$(dirname "$ARG")"
         if [ -d "$DIRNAME" ]; then
             # FIXME: what about important directories like /, /usr...?
@@ -52,38 +78,91 @@ docker_run_image() {
         fi
     done
 
+    echo "$VOLUMES"
+}
+
+enumerate_envvars() {
+    echo $(env | sort | cut -d= -f1 | awk '{print "--env", $1}')
+}
+
+verbose_echo() {
+    if [ ! -z $CLINK_VERBOSITY ]; then
+        echo "$@"
+    fi
+}
+
+print_run_cmd() {
+    RUNFLAGS="
+        DASHT
+        DEVICES
+        ENTRYPOINT
+        ENVVARS
+        INTERACTIVE
+        PORTS
+        USER_ID
+        VOLUMES
+        WORKDIR
+        "
+    for FLAG in $RUNFLAGS; do
+        echo -n "$FLAG:"
+        echo "$(echo "${!FLAG}" | sed 's/--/\n--/g')"
+    done
+}
+
+docker_run_image() {
+    # Run Docker image.
+    # Arguments: <imagename> [optional args passed at the end of docker run...]
+
+    # FIXME
+    docker rm ${1}-run
+
+    IMAGE=$1
+    shift 
+    DEVICES=$(enumerate_devices)
+    VOLUMES=$(enumerate_volumes "$@")
+    ENVVARS=$(enumerate_envvars)
+    PORTS="--publish-all"
+    WORKDIR="--workdir $(pwd)"
+    USER_ID="--user $(id -u)"
+    INTERACTIVE="--interactive"
+
     # Check if we are on a tty to decide whether to allocate one
     DASHT=
     tty -s && DASHT=-t
 
     ENTRYPOINT=
     #ENTRYPOINT="--entrypoint bash"
-    #$DEVICES  
-    #$DOCKERFILES_RUN_FLAGS \
+
+    verbose_echo "$(print_run_cmd)"
+
     docker run $DASHT \
         --name ${IMAGE}-run \
-        -i \
-        -u $(id -u) \
-        -v /etc/passwd:/etc/passwd:ro \
-        -v /etc/group:/etc/group:ro \
-        -v /etc/localtime:/etc/localtime:ro \
-        $VOLUMES \
-        -P \
+        $DEVICES \
         $ENTRYPOINT \
-        -w $(pwd) \
+        $ENVVARS \
+        $INTERACTIVE \
+        $PORTS \
+        $USER_ID \
+        $VOLUMES \
+        $WORKDIR \
         "$IMAGE" "$@"
 }
 
 which() {
-    /bin/which $1 || type -a $1 || declare -f $1 || docker images $1
+    real_which=":"
+    for which_path in /bin/which /usr/bin/which; do
+        if [ -x $which_path ]; then
+            real_which=$which_path
+        fi
+    done
+    $real_which "$1" || type -a "$1" || declare -f "$1" || find_images "$1" || echo "No Docker images found named $1"
 }
 
 command_not_found() {
-    if image_exists $1; then
-        echo "Found image; running it"
+    if image_exists $1:latest; then
         docker_run_image "$@"
     else
-        echo "$0: $1: command not found"
+        echo "$0: $1: command/image not found"
         return
     fi
 }
