@@ -62,7 +62,7 @@ if [[ "$SHELL" == "/usr/bin/zsh" ]]; then
         export SCRIPT_DIR=$(dirname $(readlink -f $0))
     fi
 elif [[ "$SHELL" == "/bin/bash" ]]; then
-    export SCRIPT_DIR=$HOME/git/clink
+    export SCRIPT_DIR=$(dirname $(pwd))
 fi
 
 # See if we're being sourced or executed directly
