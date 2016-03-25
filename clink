@@ -51,7 +51,7 @@ run_cli() {
 }
 
 run_source() {
-    source source_commands
+    source $SCRIPT_DIR/source_commands
 }
 
 # Get the script's real directory, whether we're being called directly or via a symlink
