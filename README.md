@@ -100,3 +100,7 @@ Need to make the script for get.clink.tld (or whatever).
 
 It would be nice if image names could be autocompleted and/or found with any of `which`, `type -a` or `declare -f`, instead of redefining which.
 
+
+## Acknowledgements
+
+Inspired by [jfrazelle](https://github.com/jfrazelle/dockerfiles/blob/master/bashrc).
