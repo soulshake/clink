@@ -1,0 +1,59 @@
+#!/bin/bash
+# Notes: for zsh, see
+# /etc/zsh_command_not_found
+# /usr/share/command-not-found
+# /usr/bin/command-not-found
+# See also zsh theme for hg bullshit
+# For bash, see /etc/skel/.bashrc
+
+need_item() {
+    if [ -z $1 ]; then
+        echo "Not enough input"
+    fi
+}
+
+run_cli() {
+    case "$1" in
+    --install-shell-func)
+        shift
+        need_item $1
+        image=$1
+        echo "Installing $image"
+        ;;
+    -h)
+        echo "Usage:"
+        echo "$0 [FLAGS] IMAGE"
+        echo "Flags:"
+        echo "--install-shell-func IMAGE"
+        exit 1
+        ;;
+    *)
+        need_item $1
+        image=$1
+        shift
+        args=$@
+        echo "Running: $image $args"
+        $image $args
+    esac
+}
+
+run_source() {
+    source source_commands
+}
+
+# Get the script's real directory, whether we're being called directly or via a symlink
+if [[ "$SHELL" == "/usr/bin/zsh" ]]; then
+    if [ -L $0 ]; then
+        export SCRIPT_DIR=$(dirname $(readlink $0))
+    else
+        export SCRIPT_DIR=$(dirname $(readlink -f $0))
+    fi
+elif [[ "$SHELL" == "/bin/bash" ]]; then
+    export SCRIPT_DIR=$HOME/git/clink
+fi
+
+# See if we're being sourced or executed directly
+cd $SCRIPT_DIR
+[[ "${BASH_SOURCE[0]}" != "${0}" ]] \
+    && run_source || run_cli $@ 
+cd -
