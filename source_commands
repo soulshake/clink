@@ -1,8 +1,20 @@
 #!/bin/sh
 
-find_images() {
-    docker images "$1"  # This always returns 0, there must be a better way
+find_image() {
+    #docker images "$1"  # This always returns 0, there must be a better way
     #docker inspect --format='{{ .RepoTags }}' "$1"
+    for name in "$1" "$DOCKER_HUB_USER/$1"; do
+        if image_exists "$name"; then
+            echo "$name"
+            return 0
+        fi
+    done
+    return 1
+}
+
+find_images_by_entrypoint() {
+    # docker inspect --format='{{ .Config.Entrypoint }}' aws.cli
+    :
 }
 
 image_exists() {
@@ -10,7 +22,6 @@ image_exists() {
 
     # Will always return 1 if inspecting a container instead of an image
     if ! docker inspect --format '{{ .Author }}' "$1" >&/dev/null ; then
-        echo "failed at author"
         return 1
     fi
 
@@ -101,7 +112,6 @@ verbose_echo() {
         fd="--stderr"
     fi
     logger --id $fd --tag "clink" "$@"
-    #>&2 echo "$@" | logger --id --stderr --tag "[clink]"
 }
 
 print_run_cmd() {
@@ -126,8 +136,8 @@ docker_run_image() {
     # Run Docker image.
     # Arguments: <imagename> [optional args passed at the end of docker run...]
 
-    # FIXME
-    docker rm ${1}-run
+    # fixme
+    docker rm ${1}-run &> /dev/null
 
     IMAGE=$1
     shift 
@@ -146,10 +156,11 @@ docker_run_image() {
     ENTRYPOINT=
     #ENTRYPOINT="--entrypoint bash"
 
+    CONTAINER_NAME=$(basename "$image")
     verbose_echo "$(print_run_cmd)"
 
-    docker run $DASHT \
-        --name ${IMAGE}-run \
+    docker run --rm $DASHT \
+        --name ${CONTAINER_NAME}-run \
         $DEVICES \
         $ENTRYPOINT \
         $ENVVARS \
@@ -168,12 +179,15 @@ which() {
             real_which=$which_path
         fi
     done
-    $real_which "$1" || type -a "$1" || declare -f "$1" || find_images "$1" || echo "No Docker images found named $1"
+    $real_which "$1" || type -a "$1" >&2 || declare -f "$1" || echo "No command found named $1"
 }
 
 command_not_found() {
-    if image_exists $1:latest; then
-        docker_run_image "$@"
+    image=$(find_image $1)
+    shift
+    echo "Image lookup: $image"
+    if image_exists "$image:latest"; then
+        docker_run_image "$image" "$@"
     else
         echo "$0: $1: command/image not found"
         return

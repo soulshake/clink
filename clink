@@ -20,11 +20,20 @@ display_usage() {
 run_cli() {
     case "$1" in
     --install-shell-func)
+        # fixme: not sure what this should actually do
+        :
+        ;;
+    --ls|--list)
+        images=$(docker images | grep -v ^REPOSITORY | cut -d" " -f1 | sort | uniq)
+        echo "$images"
+        ;;
+    --link)
         shift
-        need_item $1
-        image=$1
-        echo "Installing $image"
-        # FIXME
+        run_source
+        echo "  Make sure your image is tagged $1:"
+        echo "docker tag IMAGE $1"
+        echo "  Then create a symlink in your path to clink:"
+        echo "ln -s $SCRIPT_DIR/clink $HOME/bin/$1"
         ;;
     --get)
         shift
@@ -37,11 +46,11 @@ run_cli() {
         exit 1
         ;;
     *)
-        need_item $1
-        image=$1
+        need_item $0
+        image=$(basename $0)
         echo "Running: $image $@"
         run_source
-        command_not_found "$@"
+        command_not_found "$image" "$@"
     esac
 }
 
