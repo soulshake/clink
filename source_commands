@@ -1,5 +1,10 @@
 #!/bin/sh
 
+search_local_images() {
+    verbose_echo "Searching local images: $1"
+    docker images | grep "$1"
+}
+
 find_image() {
     #docker images "$1"  # This always returns 0, there must be a better way
     #docker inspect --format='{{ .RepoTags }}' "$1"
@@ -10,11 +15,6 @@ find_image() {
         fi
     done
     return 1
-}
-
-find_images_by_entrypoint() {
-    # docker inspect --format='{{ .Config.Entrypoint }}' aws.cli
-    :
 }
 
 image_exists() {
@@ -184,12 +184,14 @@ which() {
 
 command_not_found() {
     image=$(find_image $1)
+    cmd="$1"
+    verbose_echo "Clinking: $cmd"
     shift
-    echo "Image lookup: $image"
     if image_exists "$image:latest"; then
         docker_run_image "$image" "$@"
     else
-        echo "$0: $1: command/image not found"
+        echo "$0: $cmd: command/image not found"
+        search_local_images $cmd
         return
     fi
 }
@@ -201,3 +203,4 @@ command_not_found_handle () {
 command_not_found_handler() {
     command_not_found "$@"
 }
+
