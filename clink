@@ -62,7 +62,12 @@ run_source() {
     fi
 
     SCRIPT_DIR="$(dirname "$SCRIPT_FILE")"
-    source "$SCRIPT_DIR/source_commands"
+    if ! declare -f command_not_found &> /dev/null; then
+        echo "command_not_found has not been declared"
+        source "$SCRIPT_DIR/source_commands"
+    else
+        echo "command_not_found has already been declared"
+    fi
 }
 
 # We need to find out:
