@@ -1,5 +1,12 @@
 #!/bin/bash
 
+verbose_echo() {
+    if [ ! -z $CLINK_VERBOSITY ]; then
+        fd="--stderr"
+    fi
+    logger --id $fd --tag "clink" "$@"
+}
+
 need_item() {
     if [ -z $1 ]; then
         echo "Not enough input"
@@ -8,13 +15,22 @@ need_item() {
 }
 
 display_usage() {
-    echo "Usage:"
-    echo "$0 [FLAGS] IMAGE"
+    echo "usage: $(basename $0) [--install-shell-func] | [--get IMAGE] | [--help]"
+    echo
     echo "Flags:"
-    echo "--install-shell-func IMAGE"
-    echo "--get IMAGE"
+    echo "  --install-shell-func IMAGE"
+    echo "  --get IMAGE"
+    echo
+    echo "Environment variables:"
+    echo "  CLINK_VERBOSITY: When set, clink will echo extra information."
+    echo
     echo "Help:"
-    echo "-h, --help"
+    echo "  -h, --help"
+    echo
+    echo "This program should not be executed directly in most cases. Instead, "
+    echo "you should source it by adding the following line to your profile:"
+    echo
+    echo "source $(readlink -f $0)"
 }
 
 run_cli() {
@@ -48,6 +64,9 @@ run_cli() {
     *)
         need_item $0
         image=$(basename $0)
+        if [ $image = "clink" ]; then
+            display_usage && return
+        fi
         echo "Running: $image $@"
         run_source
         command_not_found "$image" "$@"
@@ -62,12 +81,7 @@ run_source() {
     fi
 
     SCRIPT_DIR="$(dirname "$SCRIPT_FILE")"
-    if ! declare -f command_not_found &> /dev/null; then
-        echo "command_not_found has not been declared"
-        source "$SCRIPT_DIR/source_commands"
-    else
-        echo "command_not_found has already been declared"
-    fi
+    source "$SCRIPT_DIR/source_commands"
 }
 
 # We need to find out:
