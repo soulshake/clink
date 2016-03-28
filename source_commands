@@ -1,35 +1,8 @@
 #!/bin/sh
 
-search_local_images() {
-    verbose_echo "Searching local images: $1"
-    docker images | grep "$1"
-}
-
-find_image() {
-    #docker images "$1"  # This always returns 0, there must be a better way
-    #docker inspect --format='{{ .RepoTags }}' "$1"
-    for name in "$1" "$DOCKER_HUB_USER/$1"; do
-        if image_exists "$name"; then
-            echo "$name"
-            return 0
-        fi
-    done
-    return 1
-}
-
 image_exists() {
     # See if a Docker image named $1 exists locally.
-
-    # Will always return 1 if inspecting a container instead of an image
-    if ! docker inspect --format '{{ .Author }}' "$1" >&/dev/null ; then
-        return 1
-    fi
-
-    # Check that it's really the name of the image, not a prefix
-    if docker inspect --format '{{ .Id }}' "$1" | grep -q "^$1" ; then
-        return 1
-    fi
-    return 0
+    docker inspect --type="image" "$1" >&/dev/null
 }
 
 enumerate_devices() {
@@ -173,28 +146,50 @@ docker_run_image() {
 }
 
 which() {
+    # fixme: We may be overriding user-defined aliases for which here.
+    # If user has defined their own aliases for which, we may or may not take precedence
+
     real_which=":"
     for which_path in /bin/which /usr/bin/which; do
         if [ -x $which_path ]; then
             real_which=$which_path
         fi
     done
-    $real_which "$1" || type -a "$1" >&2 || declare -f "$1" || echo "No command found named $1"
+
+    $real_which "$1" 2>/dev/null \
+        || type -a "$1" 2>/dev/null \
+        || declare -f "$1" 2>/dev/null \
+        || echo "No command found named $1."
+
+    if image_exists "$1"; then
+        verbose_echo "$1 is a clink!"
+        # Print to stderr to avoid causing unexpected behaviors
+        >&2 docker images "$1"
+    else
+        verbose_echo "$1 is not a clink."
+    fi
 }
 
 command_not_found() {
-    image=$(find_image $1)
     cmd="$1"
-    verbose_echo "Clinking: $cmd"
+    verbose_echo "$cmd not found in path; attempting clinkery..."
+
+    for name in "$cmd" "$DOCKER_HUB_USER/$cmd"; do
+        if image_exists "$name"; then
+            image="$name"
+        fi
+    done
     shift
-    if image_exists "$image:latest"; then
-        docker_run_image "$image" "$@"
-    else
+
+    if [ -z $image ]; then
         echo "$0: $cmd: command/image not found"
-        search_local_images $cmd
+        docker images | grep "$cmd"
         return
+    else
+        docker_run_image "$image" "$@"
     fi
 }
+
 
 command_not_found_handle () {
     command_not_found "$@"
