@@ -75,6 +75,9 @@ run_cli() {
 }
 
 run_source() {
+    # Bail if we are already in a container
+    [ -e /.dockerenv ] && echo "already in a container!" && return
+
     # If we are symlink, find out our true path.
     # (Note: we only dereference one level.)
     if [[ -L "$SCRIPT_FILE" ]]; then
