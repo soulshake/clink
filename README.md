@@ -1,12 +1,40 @@
 # clink: containerize all the things
 
-Warning: This is extremely beta.
+Warning: This is **extremely beta.** Use at your own risk.
+
+## What is it?
+
+TL;DR: When you type a command that's not installed on your system, `clink` looks for
+and launches the appropriate Docker container.
+
+This is useful if you often run desktop applications in containers, and are
+sick of creating aliases for long and unwieldy `docker run` commands.
+
+`clink` takes advantage of the `command not found` shell hook. When you run a
+command that's not installed, it looks for an appropriate match among your local
+Docker images, and tries to start a container, passing it things like the following:
+
+* Devices:
+
+    * Lots of them
+
+* Environment variables:
+
+    * All of them.
+
+* Volumes, such as:
+
+    * `/etc/passwd`
+    * `/etc/group`
+    * `/etc/localtime`
+    * and perhaps most importantly, **your current working directory.**
+
 
 ## Installation
 
     $ git clone https://github.com/soulshake/clink.git
 
-Add to your profile:
+Add it to your profile:
 
     source PATH_TO_CLONED_REPO/clink
 
