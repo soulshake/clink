@@ -80,13 +80,6 @@ enumerate_envvars() {
     echo $(env | sort | cut -d= -f1 | awk '{print "--env", $1}')
 }
 
-verbose_echo() {
-    if [ ! -z $CLINK_VERBOSITY ]; then
-        fd="--stderr"
-    fi
-    logger --id $fd --tag "clink" "$@"
-}
-
 print_run_cmd() {
     RUNFLAGS="
         DASHT
