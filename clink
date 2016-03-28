@@ -23,6 +23,7 @@ display_usage() {
     echo
     echo "Environment variables:"
     echo "  CLINK_VERBOSITY: When set, clink will echo extra information."
+    echo "  DOCKER_HUB_USER: Set this to the name of a Docker hub user or private registry namespace."
     echo
     echo "Help:"
     echo "  -h, --help"
