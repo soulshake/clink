@@ -53,7 +53,7 @@ enumerate_volumes() {
     # the parent directory
     for ARG in "$@"; do
         verbose_echo "     -> $ARG"
-        if [[ $ARG == -* ]]; then
+        if [[ "$ARG" == -* ]]; then
             verbose_echo "Flag detected, ignoring: $ARG"
         else
             # Deal with symlinks and relative paths
@@ -92,9 +92,10 @@ print_run_cmd() {
         VOLUMES
         WORKDIR
         "
+
     for FLAG in $RUNFLAGS; do
-        echo -n "$FLAG:"
-        echo "$(echo "${!FLAG}" | sed 's/--/\n--/g')"
+        echo -n "$FLAG: "
+        echo $(echo "${!FLAG}" | sed 's/--/\n--/g')
     done
 }
 
@@ -105,7 +106,7 @@ docker_run_image() {
     # fixme
     docker rm ${1}-run &> /dev/null
 
-    IMAGE=$1
+    IMAGE="$1"
     shift 
     DEVICES=$(enumerate_devices)
     VOLUMES=$(enumerate_volumes "$@")
@@ -125,8 +126,8 @@ docker_run_image() {
     CONTAINER_NAME=$(basename "$image")
     verbose_echo "$(print_run_cmd)"
 
-    docker run --rm $DASHT \
-        --name ${CONTAINER_NAME}-run \
+    docker run --rm "$DASHT" \
+        --name "${CONTAINER_NAME}-run" \
         $DEVICES \
         $ENTRYPOINT \
         $ENVVARS \
@@ -135,7 +136,7 @@ docker_run_image() {
         $USER_ID \
         $VOLUMES \
         $WORKDIR \
-        "$IMAGE" "$@"
+        $IMAGE "$@"
 }
 
 which() {
@@ -144,8 +145,8 @@ which() {
 
     real_which=":"
     for which_path in /bin/which /usr/bin/which; do
-        if [ -x $which_path ]; then
-            real_which=$which_path
+        if [ -x "$which_path" ]; then
+            real_which="$which_path"
         fi
     done
 
@@ -174,7 +175,7 @@ command_not_found() {
     done
     shift
 
-    if [ -z $image ]; then
+    if [ -z "$image" ]; then
         echo "$0: $cmd: command/image not found"
         docker images | grep "$cmd"
         return
