@@ -168,7 +168,13 @@ command_not_found() {
     cmd="$1"
     verbose_echo "$cmd not found in path; attempting clinkery..."
 
-    for name in "$cmd" "$DOCKER_HUB_USER/$cmd"; do
+    candidates=("$cmd")
+
+    if [ -n $DOCKER_HUB_USER ]; then
+      candidates+=("$DOCKER_HUB_USER/$cmd")
+    fi
+
+    for name in $candidates; do
         if image_exists "$name"; then
             image="$name"
         fi
