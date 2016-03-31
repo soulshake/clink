@@ -4,7 +4,7 @@ verbose_echo() {
     if [ ! -z $CLINK_VERBOSITY ]; then
         fd="--stderr"
     fi
-    logger --id $fd --tag "clink" "$@"
+    logger --id $fd --tag "clink" -- "$@"
 }
 
 need_item() {
@@ -24,6 +24,8 @@ display_usage() {
     echo "Environment variables:"
     echo "  CLINK_VERBOSITY: When set, clink will echo extra information."
     echo "  DOCKER_HUB_USER: Set this to the name of a Docker hub user or private registry namespace."
+    echo " CLINK_REGISTRIES: Semicolon-separated list of private registry namespaces."
+    echo "  CLINK_RUN_FLAGS: Extra flags to pass to docker run."
     echo
     echo "Help:"
     echo "  -h, --help"

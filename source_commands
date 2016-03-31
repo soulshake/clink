@@ -23,12 +23,17 @@ enumerate_devices() {
 enumerate_volumes() {
     # And a few (optional) files
     # (Like in enumerate_devices, they don't always exist everywhere)
+    unset VOLUMES
 
     RW_VOLS="
+        $HOME/.ssh
+        /usr/local/man
+        $HOME/.config
         /tmp/.X11-unix
         /run/user
         `pwd`
     "
+
     RO_VOLS="
         /etc/passwd
         /etc/group
@@ -53,22 +58,33 @@ enumerate_volumes() {
     # the parent directory
     for ARG in "$@"; do
         verbose_echo "     -> $ARG"
+
+        # If ARG is already in our list, skip it
+        if [ "$VOLUMES" == *$ARG* ]; then
+            verbose_echo "Already mounting as a volume, ignoring: $ARG"
+            continue
+        fi
+
+        # If arg starts with -, ignore it.
         if [[ "$ARG" == -* ]]; then
             verbose_echo "Flag detected, ignoring: $ARG"
-        else
-            # Deal with symlinks and relative paths
+            continue
+        fi
+
+        # If ARG is a link, resolve it.
+        if [ -L "$ARG" ]; then
             ARG=$(readlink --canonicalize --no-newline $ARG)
-            if [ -z $ARG ]; then
-                verbose_echo "not a file: $ARG"
+        fi
+
+        # If ARG is a file, mount its parent directory.
+        # fixme: what about important directories like /, /usr...?
+        if [ -e "$ARG" ]; then
+            DIRNAME="$(dirname "$ARG")"
+            if [ -d "$DIRNAME" ]; then
+                verbose_echo "Volume detected: $DIRNAME"
+                VOLUMES="$VOLUMES --volume $DIRNAME:$DIRNAME"
             else
-                DIRNAME="$(dirname "$ARG")"
-                if [ -d "$DIRNAME" ]; then
-                    # fixme: what about important directories like /, /usr...?
-                    VOLUMES="$VOLUMES --volume $DIRNAME:$DIRNAME"
-                    verbose_echo "Volume detected: $DIRNAME"
-                else
-                    verbose_echo "$DIRNAME is not a dir"
-                fi
+                verbose_echo "$DIRNAME is not a dir"
             fi
         fi
     done
@@ -83,6 +99,7 @@ enumerate_envvars() {
 print_run_cmd() {
     RUNFLAGS="
         DASHT
+        DEBUG_MODE
         DEVICES
         ENTRYPOINT
         ENVVARS
@@ -91,6 +108,7 @@ print_run_cmd() {
         USER_ID
         VOLUMES
         WORKDIR
+        EXTRA_RUN_FLAGS
         "
 
     for FLAG in $RUNFLAGS; do
@@ -102,6 +120,10 @@ print_run_cmd() {
 docker_run_image() {
     # Run Docker image.
     # Arguments: <imagename> [optional args passed at the end of docker run...]
+    if ! docker version > /dev/null; then
+        echo "Docker isn't running!"
+        exit 1
+    fi
 
     # fixme
     docker rm ${1}-run &> /dev/null
@@ -116,6 +138,8 @@ docker_run_image() {
     USER_ID="--user $(id -u)"
     INTERACTIVE="--interactive"
 
+    # DEBUG_MODE="--debug"
+
     # Check if we are on a tty to decide whether to allocate one
     DASHT=
     tty -s && DASHT=-t
@@ -124,19 +148,30 @@ docker_run_image() {
     #ENTRYPOINT="--entrypoint bash"
 
     CONTAINER_NAME=$(basename "$image")
+
+    EXTRA_RUN_FLAGS="$CLINK_RUN_FLAGS"
+    if [ -n "$EXTRA_RUN_FLAGS" ]; then
+        extra="with extra flags: $EXTRA_RUN_FLAGS"
+    fi
+
+    >&2 echo "[[ Running $IMAGE in a container $extra ]]"
     verbose_echo "$(print_run_cmd)"
 
-    docker run --rm "$DASHT" \
-        --name "${CONTAINER_NAME}-run" \
-        $DEVICES \
-        $ENTRYPOINT \
-        $ENVVARS \
-        $INTERACTIVE \
-        $PORTS \
-        $USER_ID \
-        $VOLUMES \
-        $WORKDIR \
-        $IMAGE "$@"
+    docker \
+        $DEBUG_MODE \
+        run \
+            --rm "$DASHT" \
+            --name "${CONTAINER_NAME}-run" \
+            $DEVICES \
+            $ENTRYPOINT \
+            $ENVVARS \
+            $INTERACTIVE \
+            $PORTS \
+            $USER_ID \
+            $VOLUMES \
+            $WORKDIR \
+            $EXTRA_RUN_FLAGS \
+            $IMAGE "$@"
 }
 
 which() {
@@ -155,35 +190,72 @@ which() {
         || declare -f "$1" 2>/dev/null \
         || echo "No command found named $1."
 
-    if image_exists "$1"; then
-        verbose_echo "$1 is a clink!"
+    image=$(pick_image $1)
+    if image_exists "$image"; then
+        verbose_echo "$image is a clink!"
         # Print to stderr to avoid causing unexpected behaviors
-        >&2 docker images "$1"
+        >&2 docker images "$image"
     else
-        verbose_echo "$1 is not a clink."
+        verbose_echo "$image is not a clink."
     fi
+}
+
+enumerate_prefixes() {
+    # List all possible namespaces to look for images in.
+    # If CLINK_REGISTRIES envvar is present, use it.
+    # Otherwise, if DOCKER_HUB_USER is present, use it instead.
+    # Otherwise, don't check any private registry namespaces.
+
+    if [ -z $CLINK_REGISTRIES ]; then
+        ret="$DOCKER_HUB_USER"
+    fi
+
+    # User can export semicolon-separated CLINK_REGISTRIES envvar
+    for item in $(echo ${CLINK_REGISTRIES} | tr ';' ' '); do
+        # Only add it if it's not already present
+        if ! [[ $ret == *"$item"* ]]; then
+            ret="$ret $item"
+        fi
+    done
+
+    verbose_echo "Private registry namespaces: $ret"
+    echo $ret | tr ' ' '\n'
+}
+
+pick_image() {
+    cmd="$1"
+    if image_exists "$cmd"; then
+        verbose_echo "basename image $cmd exists"
+        image="$cmd"
+    else
+        verbose_echo "basename image $cmd doesn't exist"
+        prefixes=$(enumerate_prefixes)
+        for prefix in $prefixes; do
+            verbose_echo "Checking image $prefix/$cmd exists"
+            check_image="$prefix/$cmd"
+            if image_exists "$check_image"; then
+                image=$check_image
+                verbose_echo "Found image $image"
+                break
+            else
+                verbose_echo "$check_image doesn't exist"
+                unset image
+            fi
+        done
+    fi
+    echo "$image"
 }
 
 command_not_found() {
     cmd="$1"
+    echo "$cmd"
     verbose_echo "$cmd not found in path; attempting clinkery..."
-
-    candidates=("$cmd")
-
-    if [ -n $DOCKER_HUB_USER ]; then
-      candidates+=("$DOCKER_HUB_USER/$cmd")
-    fi
-
-    for name in $candidates; do
-        if image_exists "$name"; then
-            image="$name"
-        fi
-    done
+    image=$(pick_image $cmd)
     shift
 
     if [ -z "$image" ]; then
         echo "$0: $cmd: command/image not found"
-        docker images | grep "$cmd"
+        docker images | grep -- "$cmd"
         return
     else
         docker_run_image "$image" "$@"
