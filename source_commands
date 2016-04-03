@@ -96,6 +96,14 @@ enumerate_envvars() {
     echo $(env | sort | cut -d= -f1 | awk '{print "--env", $1}')
 }
 
+enumerate_ports() {
+    if ! [[ $CLINK_RUN_FLAGS == *"--net"* ]]; then
+        PORTS="--publish-all"
+    fi
+    echo "$PORTS"
+
+}
+
 print_run_cmd() {
     RUNFLAGS="
         DASHT
@@ -133,10 +141,10 @@ docker_run_image() {
     DEVICES=$(enumerate_devices)
     VOLUMES=$(enumerate_volumes "$@")
     ENVVARS=$(enumerate_envvars)
-    PORTS="--publish-all"
     WORKDIR="--workdir $(pwd)"
     USER_ID="--user $(id -u)"
     INTERACTIVE="--interactive"
+    PORTS=$(enumerate_ports)
 
     # DEBUG_MODE="--debug"
 
