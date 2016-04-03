@@ -76,17 +76,45 @@ run_cli() {
     esac
 }
 
+dereference() {
+    # Dereference a symlink.
+    # We could use "readlink -f", but OSX doesn't support it.
+    # So we're in for a world of pain instead.
+    if ! [ -e "$1" ]; then
+        # Don't even try if:
+        # - the symlink doesn't exist
+        # - the symlink points to nothing
+        # - the symlink has a loop
+        return 1
+    fi
+    if ! [ -L "$1" ]; then
+        # If the parameter is not a symlink: we're done.
+        echo "$1"
+        return 0
+    fi
+    TARGET=$(readlink "$1")
+    case "$TARGET" in
+    /*)
+        dereference "$TARGET" ;;
+    *)
+        dereference "$(dirname "$1")/$TARGET" ;;
+    esac
+}
+
 run_source() {
     # Bail if we are already in a container
-    [ -e /.dockerenv ] && echo "already in a container!" && return
+    [ -e /.dockerenv ] && {
+        echo "already in a container"
+        return
+    }
 
-    # If we are symlink, find out our true path.
-    # (Note: we only dereference one level.)
-    if [[ -L "$SCRIPT_FILE" ]]; then
-        SCRIPT_FILE="$(readlink "$SCRIPT_FILE")"
-    fi
-
-    SCRIPT_DIR="$(dirname "$SCRIPT_FILE")"
+    # Find out our true path (in case we're a symlink).
+    SCRIPT_PATH="$(dereference "$SCRIPT_FILE")"
+    [ -z "$SCRIPT_PATH" ] && {
+        echo "could not find our true path"
+        return
+    }
+    SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
     source "$SCRIPT_DIR/source_commands"
 }
 
