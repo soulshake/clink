@@ -80,9 +80,14 @@ enumerate_volumes() {
         # fixme: what about important directories like /, /usr...?
         if [ -e "$ARG" ]; then
             DIRNAME="$(dirname "$ARG")"
-            if [ -d "$DIRNAME" ]; then
-                verbose_echo "Volume detected: $DIRNAME"
-                VOLUMES="$VOLUMES --volume $DIRNAME:$DIRNAME"
+            PARENTPATH="$(readlink -f $DIRNAME)"
+            DIRNAME="$(basename $PARENTPATH)"
+
+            if [ -d "$PARENTPATH" ]; then
+                verbose_echo "Volume detected: $PARENTPATH"
+                VOLUMES="$VOLUMES --volume $PARENTPATH:$PARENTPATH"
+                VOLUMES="$VOLUMES --volume $PARENTPATH:/src/$DIRNAME"
+                #VOLUMES="$VOLUMES --volume $ARG:/src/$ARG"
             else
                 verbose_echo "$DIRNAME is not a dir"
             fi
@@ -90,6 +95,17 @@ enumerate_volumes() {
     done
 
     echo "$VOLUMES"
+}
+
+enumerate_volumes_from() {
+    # extract 'bar' from 'foo/bar'
+    # fixme: dirty AF
+    cmd=$(echo "$1" | tr '/' ' ' | awk '{printf $2}')
+    docker volume ls \
+        | grep -- "$cmd" \
+        | awk '{ printf " --volumes-from %s ", $2}'
+        #| awk '{ printf " --driver=%s --volumes-from %s ", $1, $2}'
+
 }
 
 enumerate_envvars() {
@@ -130,21 +146,22 @@ docker_run_image() {
     # Arguments: <imagename> [optional args passed at the end of docker run...]
     if ! docker version > /dev/null; then
         echo "Docker isn't running!"
-        exit 1
+        #exit 1
     fi
 
     # fixme
-    docker rm ${1}-run &> /dev/null
 
     IMAGE="$1"
+    docker rm -f ${IMAGE} &> /dev/null
     shift 
     DEVICES=$(enumerate_devices)
-    VOLUMES=$(enumerate_volumes "$@")
     ENVVARS=$(enumerate_envvars)
-    WORKDIR="--workdir $(pwd)"
-    USER_ID="--user $(id -u)"
     INTERACTIVE="--interactive"
     PORTS=$(enumerate_ports)
+    USER_ID="--user $(id -u)"
+    VOLUMES=$(enumerate_volumes "$@")
+    VOLUMES_FROM=$(enumerate_volumes_from "$IMAGE")
+    #WORKDIR="--workdir $(pwd)"
 
     # DEBUG_MODE="--debug"
 
@@ -168,8 +185,9 @@ docker_run_image() {
     docker \
         $DEBUG_MODE \
         run \
-            --rm "$DASHT" \
-            --name "${CONTAINER_NAME}-run" \
+            --rm \
+            "$DASHT" \
+            --name "${CONTAINER_NAME}" \
             $DEVICES \
             $ENTRYPOINT \
             $ENVVARS \
@@ -182,21 +200,33 @@ docker_run_image() {
             $IMAGE "$@"
 }
 
-which() {
-    # fixme: We may be overriding user-defined aliases for which here.
-    # If user has defined their own aliases for which, we may or may not take precedence
-
+real_which_path() {
     real_which=":"
     for which_path in /bin/which /usr/bin/which; do
         if [ -x "$which_path" ]; then
             real_which="$which_path"
         fi
     done
+    echo "$real_which"
+
+}
+
+which() {
+    # fixme: We may be overriding user-defined aliases for which here.
+    # If user has defined their own aliases for which, we may or may not take precedence
+    >&2 "Overriding which"
+    real_which=$(real_which_path)
 
     $real_which "$1" 2>/dev/null \
         || type -a "$1" 2>/dev/null \
         || declare -f "$1" 2>/dev/null \
         || echo "No command found named $1."
+
+    # if docker isn't installed, we can't proceed
+    if ! check_dependencies; then
+        >&2 "Docker not installed, not clinking"
+        return 1
+    fi
 
     image=$(pick_image $1)
     if image_exists "$image"; then
@@ -256,8 +286,14 @@ pick_image() {
 
 command_not_found() {
     cmd="$1"
-    echo "$cmd"
     verbose_echo "$cmd not found in path; attempting clinkery..."
+
+    if ! check_dependencies; then
+        # if docker isn't installed, we can't proceed
+        >&2 "Docker not installed! not clinking"
+        return 1
+    fi
+
     image=$(pick_image $cmd)
     shift
 
@@ -279,3 +315,12 @@ command_not_found_handler() {
     command_not_found "$@"
 }
 
+check_dependencies() {
+    echo "in check dependencies"
+    real_which=$(real_which_path)
+    if ! $real_which docker; then
+        # if docker isn't installed, we can't proceed
+        return 1
+    fi
+    return 0
+}
