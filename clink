@@ -70,7 +70,7 @@ run_cli() {
         if [ $image = "clink" ]; then
             display_usage && return
         fi
-        echo "Running: $image $@"
+        verbose_echo "Running: $image $@"
         run_source
         command_not_found "$image" "$@"
     esac
