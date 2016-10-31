@@ -256,7 +256,6 @@ pick_image() {
 
 command_not_found() {
     cmd="$1"
-    echo "$cmd"
     verbose_echo "$cmd not found in path; attempting clinkery..."
     image=$(pick_image $cmd)
     shift
