@@ -59,12 +59,6 @@ enumerate_volumes() {
     for ARG in "$@"; do
         verbose_echo "     -> $ARG"
 
-        # If ARG is already in our list, skip it
-        if [ "$VOLUMES" == *$ARG* ]; then
-            verbose_echo "Already mounting as a volume, ignoring: $ARG"
-            continue
-        fi
-
         # If arg starts with -, ignore it.
         if [[ "$ARG" == -* ]]; then
             verbose_echo "Flag detected, ignoring: $ARG"
@@ -77,14 +71,24 @@ enumerate_volumes() {
         fi
 
         # If ARG is a file, mount its parent directory.
-        # fixme: what about important directories like /, /usr...?
+        # FIXME: what about important directories like /, /usr...?
         if [ -e "$ARG" ]; then
             DIRNAME="$(dirname "$ARG")"
             if [ -d "$DIRNAME" ]; then
-                verbose_echo "Volume detected: $DIRNAME"
-                VOLUMES="$VOLUMES --volume $DIRNAME:$DIRNAME"
+                verbose_echo "Directory detected: $DIRNAME"
+                ABSPATH=$(cd $DIRNAME ; echo $PWD)
+                verbose_echo "Resolved to: $ABSPATH"
+                # If the volume is already in our list, skip it
+                case "$VOLUMES" in
+                *" $ABSPATH:$ABSPATH"*)
+                    verbose_echo "Filtering out duplicate volume $ABSPATH"
+                    ;;
+                *)
+                    VOLUMES="$VOLUMES --volume $ABSPATH:$ABSPATH"
+                    ;;
+                esac
             else
-                verbose_echo "$DIRNAME is not a dir"
+                verbose_echo "$DIRNAME is not a directory; skipping it"
             fi
         fi
     done
